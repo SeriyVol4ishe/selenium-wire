@@ -4,7 +4,7 @@ from unittest.mock import Mock, patch
 
 from seleniumwire.handler import InterceptRequestHandler
 from seleniumwire.request import WebSocketMessage
-from seleniumwire.thirdparty.mitmproxy.net.http.headers import Headers
+from mitmproxy.net.http.headers import Headers
 
 
 class InterceptRequestHandlerTest(TestCase):

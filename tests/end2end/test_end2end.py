@@ -17,7 +17,7 @@ from selenium.webdriver.common.by import By
 
 import seleniumwire
 from seleniumwire import webdriver
-from seleniumwire.thirdparty.mitmproxy.exceptions import ServerException
+from mitmproxy.exceptions import ServerException
 from tests import utils as testutils
 
 

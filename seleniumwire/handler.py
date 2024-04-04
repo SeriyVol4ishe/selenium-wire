@@ -4,9 +4,9 @@ from datetime import datetime
 
 from seleniumwire import har
 from seleniumwire.request import Request, Response, WebSocketMessage
-from seleniumwire.thirdparty.mitmproxy.http import HTTPResponse
-from seleniumwire.thirdparty.mitmproxy.net import websockets
-from seleniumwire.thirdparty.mitmproxy.net.http.headers import Headers
+from mitmproxy.http import HTTPResponse
+from mitmproxy.net import websocket
+from mitmproxy.net.http.headers import Headers
 from seleniumwire.utils import is_list_alike
 
 log = logging.getLogger(__name__)
@@ -142,7 +142,7 @@ class InterceptRequestHandler:
 
         # For websocket requests, the scheme of the request is overwritten with https
         # in the initial CONNECT request so we set the scheme back to wss for capture.
-        if websockets.check_handshake(request.headers) and websockets.check_client_version(request.headers):
+        if websocket.check_handshake(request.headers) and websocket.check_client_version(request.headers):
             request.url = request.url.replace('https://', 'wss://', 1)
 
         request.response = response
