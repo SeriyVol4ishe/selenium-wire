@@ -12,7 +12,7 @@ from pyasn1.codec.der.decoder import decode
 from pyasn1.error import PyAsn1Error
 import OpenSSL
 
-from mitmproxy.coretypes import serializable
+from seleniumwire.thirdparty.mitmproxy.coretypes import serializable
 
 # Default expiry must not be too long: https://github.com/mitmproxy/mitmproxy/issues/815
 DEFAULT_EXP = 94608000  # = 60 * 60 * 24 * 365 * 3 = 3 years

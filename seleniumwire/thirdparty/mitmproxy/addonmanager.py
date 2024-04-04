@@ -238,7 +238,7 @@ class AddonManager:
                     func(*args, **kwargs)
                 elif isinstance(func, types.ModuleType):
                     # we gracefully exclude module imports with the same name as hooks.
-                    # For example, a user may have "from mitmproxy import log" in an addon,
+                    # For example, a user may have "from seleniumwire.thirdparty.mitmproxy import log" in an addon,
                     # which has the same name as the "log" hook. In this particular case,
                     # we end up in an error loop because we "log" this error.
                     pass

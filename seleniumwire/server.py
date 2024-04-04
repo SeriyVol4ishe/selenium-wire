@@ -7,7 +7,7 @@ from seleniumwire.modifier import RequestModifier
 from seleniumwire.thirdparty.mitmproxy import addons
 from seleniumwire.thirdparty.mitmproxy.master import Master
 from seleniumwire.thirdparty.mitmproxy.options import Options
-from seleniumwire.thirdparty.mitmproxy.server import ProxyConfig, ProxyServer
+from seleniumwire.thirdparty.mitmproxy.proxy import ProxyServer, ProxyConfig
 from seleniumwire.utils import build_proxy_args, extract_cert_and_key, get_upstream_proxy
 
 logger = logging.getLogger(__name__)
