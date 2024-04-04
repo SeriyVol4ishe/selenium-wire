@@ -1,13 +1,14 @@
 import asyncio
 import logging
 
+from mitmproxy import addons
+from mitmproxy.master import Master
+from mitmproxy.options import Options
+from mitmproxy.proxy import ProxyServer, ProxyConfig
+
 from seleniumwire import storage
 from seleniumwire.handler import InterceptRequestHandler
 from seleniumwire.modifier import RequestModifier
-from seleniumwire.thirdparty.mitmproxy import addons
-from seleniumwire.thirdparty.mitmproxy.master import Master
-from seleniumwire.thirdparty.mitmproxy.options import Options
-from seleniumwire.thirdparty.mitmproxy.proxy import ProxyServer, ProxyConfig
 from seleniumwire.utils import build_proxy_args, extract_cert_and_key, get_upstream_proxy
 
 logger = logging.getLogger(__name__)
@@ -41,7 +42,7 @@ class MitmProxy:
 
         mitmproxy_opts = Options()
 
-        self.master = Master(self._event_loop, mitmproxy_opts)
+        self.master = Master(mitmproxy_opts)
         self.master.addons.add(*addons.default_addons())
         self.master.addons.add(SendToLogger())
         self.master.addons.add(InterceptRequestHandler(self))
