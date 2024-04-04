@@ -13,6 +13,7 @@ from unittest.mock import patch
 
 import pytest
 from selenium.common.exceptions import TimeoutException
+from selenium.webdriver.common.by import By
 
 import seleniumwire
 from seleniumwire import webdriver
@@ -263,7 +264,7 @@ def test_update_json_post_request(driver_path, chrome_options, httpbin):
 
         form = Path(__file__).parent / 'jsonform.html'
         driver.get(f'file:///{str(form)}')
-        button = driver.find_element_by_id('submit')
+        button = driver.find_element(By.ID, 'submit')
         button.click()  # Makes Ajax request so need to wait for it
         request = driver.wait_for_request('/post')
 
@@ -349,6 +350,15 @@ def test_upstream_socks_proxy(driver_path, chrome_options, httpbin, socksproxy):
         driver.get(f'{httpbin}/html')
 
         assert 'This passed through a socks proxy' in driver.page_source
+
+
+def test_bypass_upstream_socks_proxy(driver_path, chrome_options, httpbin, socksproxy):
+    sw_options = {'proxy': {'https': f'{socksproxy}', 'no_proxy': 'localhost:8085'}}
+
+    with create_driver(driver_path, chrome_options, sw_options) as driver:
+        driver.get(f'{httpbin}/html')
+
+        assert 'This passed through a socks proxy' not in driver.page_source
 
 
 def test_bypass_upstream_proxy_when_target_http(driver_path, chrome_options, httpproxy):

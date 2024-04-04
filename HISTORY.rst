@@ -1,6 +1,33 @@
 History
 ~~~~~~~
 
+5.1.0 (2022-10-15)
+------------------
+
+* Drop support for Selenium<4.0.0.
+* Drop support for SSLv2 and SSLv3.
+* Fix bug where setting non-string header values would cause an interceptor to fail.
+
+5.0.0 (2022-09-26)
+------------------
+
+* Add support for Microsoft Edge to webdriver
+* Drop support for Python 3.6
+* Fix compatibility issue with PyOpenSSL
+
+4.6.5 (2022-07-09)
+------------------
+
+* Fix compatibility issue with DesiredCapabilities and older versions of the Chrome webdriver API.
+* Fix bug where verify_ssl would assume the inverse of the boolean passed (it was the wrong way round).
+* Minor update to support Python 3.10.
+* Minor README updates.
+
+4.6.4 (2022-05-11)
+------------------
+
+* Fix bug where setting an interceptor would break websocket requests.
+
 4.6.3 (2022-03-13)
 ------------------
 
