@@ -1,10 +1,9 @@
 # This is a generated file! Please edit source .ksy file and use kaitai-struct-compiler to rebuild
 
+from pkg_resources import parse_version
+from kaitaistruct import __version__ as ks_version, KaitaiStruct, KaitaiStream, BytesIO
 import struct
 
-from kaitaistruct import BytesIO, KaitaiStream, KaitaiStruct
-from kaitaistruct import __version__ as ks_version
-from pkg_resources import parse_version
 
 if parse_version(ks_version) < parse_version('0.7'):
     raise Exception("Incompatible Kaitai Struct Python API: 0.7 or later is required, but you have %s" % (ks_version))
@@ -86,3 +85,6 @@ class Ico(KaitaiStruct):
 
             self._m_is_png = self.png_header == struct.pack('8b', -119, 80, 78, 71, 13, 10, 26, 10)
             return self._m_is_png if hasattr(self, '_m_is_png') else None
+
+
+

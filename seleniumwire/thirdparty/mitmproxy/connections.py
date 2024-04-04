@@ -2,13 +2,15 @@ import os
 import time
 import typing
 import uuid
-import socket
+import warnings
 
-import socks
-
-from seleniumwire.thirdparty.mitmproxy import certs, exceptions, stateobject
-from seleniumwire.thirdparty.mitmproxy.net import tls, tcp
-from seleniumwire.thirdparty.mitmproxy.utils import human, strutils
+from seleniumwire.thirdparty.mitmproxy import certs
+from seleniumwire.thirdparty.mitmproxy import exceptions
+from seleniumwire.thirdparty.mitmproxy import stateobject
+from seleniumwire.thirdparty.mitmproxy.net import tcp
+from seleniumwire.thirdparty.mitmproxy.net import tls
+from seleniumwire.thirdparty.mitmproxy.utils import human
+from seleniumwire.thirdparty.mitmproxy.utils import strutils
 
 
 class ClientConnection(tcp.BaseHandler, stateobject.StateObject):
@@ -18,7 +20,6 @@ class ClientConnection(tcp.BaseHandler, stateobject.StateObject):
     Attributes:
         address: Remote address
         tls_established: True if TLS is established, False otherwise
-        clientcert: The TLS client certificate
         mitmcert: The MITM'ed TLS server certificate presented to the client
         timestamp_start: Connection start timestamp
         timestamp_tls_setup: TLS established timestamp
@@ -41,7 +42,6 @@ class ClientConnection(tcp.BaseHandler, stateobject.StateObject):
             self.wfile = None
             self.rfile = None
             self.address = None
-            self.clientcert = None
             self.tls_established = None
 
         self.id = str(uuid.uuid4())
@@ -60,7 +60,7 @@ class ClientConnection(tcp.BaseHandler, stateobject.StateObject):
 
     def __repr__(self):
         if self.tls_established:
-            tls = "[{}] ".format(self.tls_version)
+            tls = f"[{self.tls_version}] "
         else:
             tls = ""
 
@@ -85,11 +85,19 @@ class ClientConnection(tcp.BaseHandler, stateobject.StateObject):
     def __hash__(self):
         return hash(self.id)
 
+    # Sans-io attributes.
+    state = 0
+    sockname = ("", 0)
+    error = None
+    tls = None
+    certificate_list = ()
+    alpn_offers = None
+    cipher_list = None
+
     _stateobject_attributes = dict(
         id=str,
         address=tuple,
         tls_established=bool,
-        clientcert=certs.Cert,
         mitmcert=certs.Cert,
         timestamp_start=float,
         timestamp_tls_setup=float,
@@ -99,11 +107,35 @@ class ClientConnection(tcp.BaseHandler, stateobject.StateObject):
         alpn_proto_negotiated=bytes,
         tls_version=str,
         tls_extensions=typing.List[typing.Tuple[int, bytes]],
+        # sans-io exclusives
+        state=int,
+        sockname=tuple,
+        error=str,
+        tls=bool,
+        certificate_list=typing.List[certs.Cert],
+        alpn_offers=typing.List[bytes],
+        cipher_list=typing.List[str],
     )
+
+    @property
+    def clientcert(self) -> typing.Optional[certs.Cert]:  # pragma: no cover
+        warnings.warn(".clientcert is deprecated, use .certificate_list instead.", PendingDeprecationWarning)
+        if self.certificate_list:
+            return self.certificate_list[0]
+        else:
+            return None
+
+    @clientcert.setter
+    def clientcert(self, val):  # pragma: no cover
+        warnings.warn(".clientcert is deprecated, use .certificate_list instead.", PendingDeprecationWarning)
+        if val:
+            self.certificate_list = [val]
+        else:
+            self.certificate_list = []
 
     def send(self, message):
         if isinstance(message, list):
-            message = b"".join(message)
+            message = b''.join(message)
         self.wfile.write(message)
         self.wfile.flush()
 
@@ -115,23 +147,27 @@ class ClientConnection(tcp.BaseHandler, stateobject.StateObject):
 
     @classmethod
     def make_dummy(cls, address):
-        return cls.from_state(
-            dict(
-                id=str(uuid.uuid4()),
-                address=address,
-                clientcert=None,
-                mitmcert=None,
-                tls_established=False,
-                timestamp_start=None,
-                timestamp_end=None,
-                timestamp_tls_setup=None,
-                sni=None,
-                cipher_name=None,
-                alpn_proto_negotiated=None,
-                tls_version=None,
-                tls_extensions=None,
-            )
-        )
+        return cls.from_state(dict(
+            id=str(uuid.uuid4()),
+            address=address,
+            mitmcert=None,
+            tls_established=False,
+            timestamp_start=None,
+            timestamp_end=None,
+            timestamp_tls_setup=None,
+            sni=None,
+            cipher_name=None,
+            alpn_proto_negotiated=None,
+            tls_version=None,
+            tls_extensions=None,
+            state=0,
+            sockname=("", 0),
+            error=None,
+            tls=False,
+            certificate_list=[],
+            alpn_offers=[],
+            cipher_list=[],
+        ))
 
     def convert_to_tls(self, cert, *args, **kwargs):
         # Unfortunately OpenSSL provides no way to expose all TLS extensions, so we do this dance
@@ -169,11 +205,10 @@ class ServerConnection(tcp.TCPClient, stateobject.StateObject):
         ip_address: Resolved remote IP address.
         source_address: Local IP address or client's source IP address.
         tls_established: True if TLS is established, False otherwise
-        cert: The certificate presented by the remote during the TLS handshake
-        sni: Server Name Indication sent by the mitmproxy during the TLS handshake
+        sni: Server Name Indication sent by the proxy during the TLS handshake
         alpn_proto_negotiated: The negotiated application protocol
         tls_version: TLS version
-        via: The underlying server connection (e.g. the connection to the upstream mitmproxy in upstream mitmproxy mode)
+        via: The underlying server connection (e.g. the connection to the upstream proxy in upstream proxy mode)
         timestamp_start: Connection start timestamp
         timestamp_tcp_setup: TCP ACK received timestamp
         timestamp_tls_setup: TLS established timestamp
@@ -222,13 +257,22 @@ class ServerConnection(tcp.TCPClient, stateobject.StateObject):
     def __hash__(self):
         return hash(self.id)
 
+    # Sans-io attributes.
+    state = 0
+    error = None
+    tls = None
+    certificate_list = ()
+    alpn_offers = None
+    cipher_name = None
+    cipher_list = None
+    via2 = None
+
     _stateobject_attributes = dict(
         id=str,
         address=tuple,
         ip_address=tuple,
         source_address=tuple,
         tls_established=bool,
-        cert=certs.Cert,
         sni=str,
         alpn_proto_negotiated=bytes,
         tls_version=str,
@@ -236,7 +280,32 @@ class ServerConnection(tcp.TCPClient, stateobject.StateObject):
         timestamp_tcp_setup=float,
         timestamp_tls_setup=float,
         timestamp_end=float,
+        # sans-io exclusives
+        state=int,
+        error=str,
+        tls=bool,
+        certificate_list=typing.List[certs.Cert],
+        alpn_offers=typing.List[bytes],
+        cipher_name=str,
+        cipher_list=typing.List[str],
+        via2=None,
     )
+
+    @property
+    def cert(self) -> typing.Optional[certs.Cert]:  # pragma: no cover
+        warnings.warn(".cert is deprecated, use .certificate_list instead.", PendingDeprecationWarning)
+        if self.certificate_list:
+            return self.certificate_list[0]
+        else:
+            return None
+
+    @cert.setter
+    def cert(self, val):  # pragma: no cover
+        warnings.warn(".cert is deprecated, use .certificate_list instead.", PendingDeprecationWarning)
+        if val:
+            self.certificate_list = [val]
+        else:
+            self.certificate_list = []
 
     @classmethod
     def from_state(cls, state):
@@ -246,24 +315,29 @@ class ServerConnection(tcp.TCPClient, stateobject.StateObject):
 
     @classmethod
     def make_dummy(cls, address):
-        return cls.from_state(
-            dict(
-                id=str(uuid.uuid4()),
-                address=address,
-                ip_address=address,
-                cert=None,
-                sni=address[0],
-                alpn_proto_negotiated=None,
-                tls_version=None,
-                source_address=("", 0),
-                tls_established=False,
-                timestamp_start=None,
-                timestamp_tcp_setup=None,
-                timestamp_tls_setup=None,
-                timestamp_end=None,
-                via=None,
-            )
-        )
+        return cls.from_state(dict(
+            id=str(uuid.uuid4()),
+            address=address,
+            ip_address=address,
+            sni=address[0],
+            alpn_proto_negotiated=None,
+            tls_version=None,
+            source_address=('', 0),
+            tls_established=False,
+            timestamp_start=None,
+            timestamp_tcp_setup=None,
+            timestamp_tls_setup=None,
+            timestamp_end=None,
+            via=None,
+            state=0,
+            error=None,
+            tls=False,
+            certificate_list=[],
+            alpn_offers=[],
+            cipher_name=None,
+            cipher_list=[],
+            via2=None,
+        ))
 
     def connect(self):
         self.timestamp_start = time.time()
@@ -272,7 +346,7 @@ class ServerConnection(tcp.TCPClient, stateobject.StateObject):
 
     def send(self, message):
         if isinstance(message, list):
-            message = b"".join(message)
+            message = b''.join(message)
         self.wfile.write(message)
         self.wfile.flush()
 
@@ -287,7 +361,7 @@ class ServerConnection(tcp.TCPClient, stateobject.StateObject):
             else:
                 path = os.path.join(
                     client_certs,
-                    (sni or self.address[0].encode("idna").decode()) + ".pem",
+                    (sni or self.address[0].encode("idna").decode()) + ".pem"
                 )
                 if os.path.exists(path):
                     client_cert = path
@@ -304,35 +378,3 @@ class ServerConnection(tcp.TCPClient, stateobject.StateObject):
 
 
 ServerConnection._stateobject_attributes["via"] = ServerConnection
-
-
-class SocksServerConnection(ServerConnection):
-    def __init__(self, socks_config, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.socks_config = socks_config
-
-    def getaddrinfo(self, host, port, *args, **kwargs):
-        if self.socks_config.scheme == "socks5h":
-            return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (host, port))]
-        return super().getaddrinfo(host, port, *args, **kwargs)
-
-    def makesocket(self, family, type, proto):
-        try:
-            socks_type = dict(
-                socks4=socks.PROXY_TYPE_SOCKS4,
-                socks5=socks.PROXY_TYPE_SOCKS5,
-                socks5h=socks.PROXY_TYPE_SOCKS5,
-            )[self.socks_config.scheme]
-        except KeyError:
-            raise TypeError("Invalid SOCKS scheme: {}".format(self.socks_config.scheme))
-
-        s = socks.socksocket(family, type, proto)
-        s.set_proxy(
-            socks_type,
-            self.socks_config.address,
-            self.socks_config.port,
-            self.socks_config.scheme == "socks5h",
-            self.socks_config.username,
-            self.socks_config.password,
-        )
-        return s

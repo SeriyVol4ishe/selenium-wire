@@ -1,5 +1,5 @@
-import threading
 import time
+import threading
 
 
 class BaseThread(threading.Thread):

@@ -9,8 +9,7 @@ import types
 import typing
 
 import seleniumwire.thirdparty.mitmproxy.types
-from seleniumwire.thirdparty.mitmproxy import exceptions
-from seleniumwire.thirdparty.mitmproxy import command_lexer
+from seleniumwire.thirdparty.mitmproxy import exceptions, command_lexer
 from seleniumwire.thirdparty.mitmproxy.command_lexer import unquote
 
 
@@ -160,7 +159,7 @@ class CommandManager:
                             self.add(o.command_name, o)
                         except exceptions.CommandError as e:
                             self.master.log.warn(
-                                "Could not load command %s: %s" % (o.command_name, e)
+                                f"Could not load command {o.command_name}: {e}"
                             )
 
     def add(self, path: str, func: typing.Callable):
@@ -202,13 +201,13 @@ class CommandManager:
                 expected = CommandParameter("", seleniumwire.thirdparty.mitmproxy.types.Unknown)
 
             arg_is_known_command = (
-                expected.type == seleniumwire.thirdparty.mitmproxy.types.Cmd and part in self.commands
+                    expected.type == seleniumwire.thirdparty.mitmproxy.types.Cmd and part in self.commands
             )
             arg_is_unknown_command = (
-                expected.type == seleniumwire.thirdparty.mitmproxy.types.Cmd and part not in self.commands
+                    expected.type == seleniumwire.thirdparty.mitmproxy.types.Cmd and part not in self.commands
             )
             command_args_following = (
-                next_params and next_params[0].type == seleniumwire.thirdparty.mitmproxy.types.CmdArgs
+                    next_params and next_params[0].type == seleniumwire.thirdparty.mitmproxy.types.CmdArgs
             )
             if arg_is_known_command and command_args_following:
                 next_params = self.commands[part].parameters + next_params[1:]
@@ -305,7 +304,7 @@ def command(name: typing.Optional[str] = None):
 def argument(name, type):
     """
         Set the type of a command argument at runtime. This is useful for more
-        specific types such as seleniumwire.thirdparty.mitmproxy.types.Choice, which we cannot annotate
+        specific types such as mitmproxy.types.Choice, which we cannot annotate
         directly as mypy does not like that.
     """
 

@@ -1,9 +1,9 @@
+import struct
 import array
 import ipaddress
-import struct
 
-from seleniumwire.thirdparty.mitmproxy.coretypes import bidi
 from seleniumwire.thirdparty.mitmproxy.net import check
+from seleniumwire.thirdparty.mitmproxy.coretypes import bidi
 
 
 class SocksError(Exception):

@@ -5,7 +5,8 @@ from typing import Dict, Iterable, Optional, Tuple, Union
 
 import seleniumwire.thirdparty.mitmproxy.net.http.url
 from seleniumwire.thirdparty.mitmproxy.coretypes import multidict
-from seleniumwire.thirdparty.mitmproxy.net.http import cookies, message, multipart
+from seleniumwire.thirdparty.mitmproxy.net.http import cookies, multipart
+from seleniumwire.thirdparty.mitmproxy.net.http import message
 from seleniumwire.thirdparty.mitmproxy.net.http.headers import Headers
 from seleniumwire.thirdparty.mitmproxy.utils.strutils import always_bytes, always_str
 
@@ -203,7 +204,7 @@ class Request(message.Message):
         """
         Target host. This may be parsed from the raw request
         (e.g. from a ``GET http://example.com/ HTTP/1.1`` request line)
-        or inferred from the mitmproxy mode (e.g. an IP in transparent mode).
+        or inferred from the proxy mode (e.g. an IP in transparent mode).
 
         Setting the host attribute also updates the host header and authority information, if present.
         """
@@ -218,7 +219,7 @@ class Request(message.Message):
             self.data.headers["Host"] = val
         # Update authority
         if self.data.authority:
-            self.authority = seleniumwire.thirdparty.mitmproxy.net.http.url.hostport(self.scheme, self.host, self.port)
+            self.authority = mitmproxy.net.http.url.hostport(self.scheme, self.host, self.port)
 
     @property
     def host_header(self) -> Optional[str]:
@@ -276,12 +277,12 @@ class Request(message.Message):
         """
         if self.first_line_format == "authority":
             return f"{self.host}:{self.port}"
-        return seleniumwire.thirdparty.mitmproxy.net.http.url.unparse(self.scheme, self.host, self.port, self.path)
+        return mitmproxy.net.http.url.unparse(self.scheme, self.host, self.port, self.path)
 
     @url.setter
     def url(self, val: Union[str, bytes]) -> None:
         val = always_str(val, "utf-8", "surrogateescape")
-        self.scheme, self.host, self.port, self.path = seleniumwire.thirdparty.mitmproxy.net.http.url.parse(val)
+        self.scheme, self.host, self.port, self.path = mitmproxy.net.http.url.parse(val)
 
     @property
     def pretty_host(self) -> str:
@@ -292,7 +293,7 @@ class Request(message.Message):
         """
         authority = self.host_header
         if authority:
-            return seleniumwire.thirdparty.mitmproxy.net.http.url.parse_authority(authority, check=False)[0]
+            return mitmproxy.net.http.url.parse_authority(authority, check=False)[0]
         else:
             return self.host
 
@@ -308,26 +309,24 @@ class Request(message.Message):
         if not host_header:
             return self.url
 
-        pretty_host, pretty_port = seleniumwire.thirdparty.mitmproxy.net.http.url.parse_authority(host_header,
-                                                                                                  check=False)
-        pretty_port = pretty_port or seleniumwire.thirdparty.mitmproxy.net.http.url.default_port(self.scheme) or 443
+        pretty_host, pretty_port = mitmproxy.net.http.url.parse_authority(host_header, check=False)
+        pretty_port = pretty_port or mitmproxy.net.http.url.default_port(self.scheme) or 443
 
-        return seleniumwire.thirdparty.mitmproxy.net.http.url.unparse(self.scheme, pretty_host, pretty_port, self.path)
+        return mitmproxy.net.http.url.unparse(self.scheme, pretty_host, pretty_port, self.path)
 
     def _get_query(self):
         query = urllib.parse.urlparse(self.url).query
-        return tuple(seleniumwire.thirdparty.mitmproxy.net.http.url.decode(query))
+        return tuple(mitmproxy.net.http.url.decode(query))
 
     def _set_query(self, query_data):
-        query = seleniumwire.thirdparty.mitmproxy.net.http.url.encode(query_data)
+        query = mitmproxy.net.http.url.encode(query_data)
         _, _, path, params, _, fragment = urllib.parse.urlparse(self.url)
         self.path = urllib.parse.urlunparse(["", "", path, params, query, fragment])
 
     @property
     def query(self) -> multidict.MultiDictView:
         """
-        The request query string as an
-        :py:class:`~seleniumwire.thirdparty.mitmproxy.net.multidict.MultiDictView` object.
+        The request query string as an :py:class:`~mitmproxy.net.multidict.MultiDictView` object.
         """
         return multidict.MultiDictView(
             self._get_query,
@@ -350,8 +349,7 @@ class Request(message.Message):
         """
         The request cookies.
 
-        An empty :py:class:`~seleniumwire.thirdparty.mitmproxy.net.multidict.MultiDictView` object
-        if the cookie monster ate them all.
+        An empty :py:class:`~mitmproxy.net.multidict.MultiDictView` object if the cookie monster ate them all.
         """
         return multidict.MultiDictView(
             self._get_cookies,
@@ -372,11 +370,11 @@ class Request(message.Message):
         # This needs to be a tuple so that it's immutable.
         # Otherwise, this would fail silently:
         #   request.path_components.append("foo")
-        return tuple(seleniumwire.thirdparty.mitmproxy.net.http.url.unquote(i) for i in path.split("/") if i)
+        return tuple(mitmproxy.net.http.url.unquote(i) for i in path.split("/") if i)
 
     @path_components.setter
     def path_components(self, components):
-        components = map(lambda x: seleniumwire.thirdparty.mitmproxy.net.http.url.quote(x, safe=""), components)
+        components = map(lambda x: mitmproxy.net.http.url.quote(x, safe=""), components)
         path = "/" + "/".join(components)
         _, _, _, params, query, fragment = urllib.parse.urlparse(self.url)
         self.path = urllib.parse.urlunparse(["", "", path, params, query, fragment])
@@ -418,7 +416,7 @@ class Request(message.Message):
     def _get_urlencoded_form(self):
         is_valid_content_type = "application/x-www-form-urlencoded" in self.headers.get("content-type", "").lower()
         if is_valid_content_type:
-            return tuple(seleniumwire.thirdparty.mitmproxy.net.http.url.decode(self.get_text(strict=False)))
+            return tuple(mitmproxy.net.http.url.decode(self.get_text(strict=False)))
         return ()
 
     def _set_urlencoded_form(self, form_data):
@@ -427,16 +425,14 @@ class Request(message.Message):
         This will overwrite the existing content if there is one.
         """
         self.headers["content-type"] = "application/x-www-form-urlencoded"
-        self.content = seleniumwire.thirdparty.mitmproxy.net.http.url.encode(
-            form_data, self.get_text(strict=False)
-        ).encode()
+        self.content = mitmproxy.net.http.url.encode(form_data, self.get_text(strict=False)).encode()
 
     @property
     def urlencoded_form(self):
         """
-        The URL-encoded form data as an :py:class:`~seleniumwire.thirdparty.mitmproxy.net.multidict.MultiDictView`
-        object. An empty multidict.MultiDictView if the content-type indicates non-form data or the content could
-        not be parsed.
+        The URL-encoded form data as an :py:class:`~mitmproxy.net.multidict.MultiDictView` object.
+        An empty multidict.MultiDictView if the content-type indicates non-form data
+        or the content could not be parsed.
 
         Starting with mitmproxy 1.0, key and value are strings.
         """
@@ -459,15 +455,15 @@ class Request(message.Message):
         return ()
 
     def _set_multipart_form(self, value):
-        self.content = seleniumwire.thirdparty.mitmproxy.net.http.multipart.encode(self.headers, value)
+        self.content = mitmproxy.net.http.multipart.encode(self.headers, value)
         self.headers["content-type"] = "multipart/form-data"
 
     @property
     def multipart_form(self):
         """
-        The multipart form data as an :py:class:`~seleniumwire.thirdparty.mitmproxy.net.multidict.MultiDictView`
-        object. An empty multidict.MultiDictView if the content-type indicates non-form data or the content could
-        not be parsed.
+        The multipart form data as an :py:class:`~mitmproxy.net.multidict.MultiDictView` object.
+        An empty multidict.MultiDictView if the content-type indicates non-form data
+        or the content could not be parsed.
 
         Key and value are bytes.
         """

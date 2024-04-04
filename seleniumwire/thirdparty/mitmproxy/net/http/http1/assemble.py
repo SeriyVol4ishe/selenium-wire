@@ -48,7 +48,7 @@ def assemble_body(headers, body_chunks, trailers):
 def _assemble_request_line(request_data):
     """
     Args:
-        request_data (seleniumwire.thirdparty.mitmproxy.net.http.request.RequestData)
+        request_data (mitmproxy.net.http.request.RequestData)
     """
     if request_data.method.upper() == b"CONNECT":
         return b"%s %s %s" % (
@@ -75,7 +75,7 @@ def _assemble_request_line(request_data):
 def _assemble_request_headers(request_data):
     """
     Args:
-        request_data (seleniumwire.thirdparty.mitmproxy.net.http.request.RequestData)
+        request_data (mitmproxy.net.http.request.RequestData)
     """
     return bytes(request_data.headers)
 

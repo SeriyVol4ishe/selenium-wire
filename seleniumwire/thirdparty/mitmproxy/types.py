@@ -1,12 +1,12 @@
-import glob
 import os
+import glob
 import typing
 
 from seleniumwire.thirdparty.mitmproxy import exceptions
 from seleniumwire.thirdparty.mitmproxy import flow
 
 if typing.TYPE_CHECKING:  # pragma: no cover
-    from seleniumwire.thirdparty.mitmproxy import CommandManager
+    from seleniumwire.thirdparty.mitmproxy.command import CommandManager
 
 
 class Path(str):

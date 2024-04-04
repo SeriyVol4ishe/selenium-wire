@@ -1,4 +1,5 @@
 import time
+
 from typing import List
 
 from seleniumwire.thirdparty.mitmproxy import flow

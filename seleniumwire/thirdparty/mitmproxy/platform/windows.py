@@ -1,5 +1,3 @@
-import collections
-import collections.abc
 import contextlib
 import ctypes
 import ctypes.wintypes
@@ -10,8 +8,12 @@ import re
 import socket
 import socketserver
 import threading
+import time
 import typing
 
+import click
+import collections
+import collections.abc
 import pydivert
 import pydivert.consts
 
@@ -66,7 +68,7 @@ class Resolver:
                 if addr is None:
                     raise RuntimeError("Cannot resolve original destination.")
                 return tuple(addr)
-            except (EOFError, socket.error):
+            except (EOFError, OSError):
                 self._connect()
                 return self.original_addr(csock)
 
@@ -89,7 +91,7 @@ class APIRequestHandler(socketserver.StreamRequestHandler):
                     except KeyError:
                         server = None
                     write(server, self.wfile)
-        except (EOFError, socket.error):
+        except (EOFError, OSError):
             pass
 
 
@@ -331,7 +333,7 @@ class RedirectLocal(Redirect):
             self.tcp_connections.refresh()
 
         # If this fails, we most likely have a connection from an external client.
-        # In this, case we always want to mitmproxy the request.
+        # In this, case we always want to proxy the request.
         pid = self.tcp_connections.get(client, None)
 
         if pid not in self.trusted_pids:
@@ -377,7 +379,7 @@ class TransparentProxy:
     (1) First, we intercept all packages that match our filter.
     We both consider traffic that is forwarded by the OS (WinDivert's NETWORK_FORWARD layer) as well
     as traffic sent from the local machine (WinDivert's NETWORK layer). In the case of traffic from
-    the local machine, we need to exempt packets sent from the mitmproxy to not create a redirect loop.
+    the local machine, we need to exempt packets sent from the proxy to not create a redirect loop.
     To accomplish this, we use Windows' GetExtendedTcpTable syscall and determine the source
     application's PID.
 
@@ -385,23 +387,23 @@ class TransparentProxy:
         1. Store the source -> destination mapping (address and port)
         2. Remove the package from the network (by not reinjecting it).
         3. Re-inject the package into the local network stack, but with the destination address
-           changed to the mitmproxy.
+           changed to the proxy.
 
-    (2) Next, the mitmproxy receives the forwarded packet, but does not know the real destination yet
-    (which we overwrote with the mitmproxy's address). On Linux, we would now call
+    (2) Next, the proxy receives the forwarded packet, but does not know the real destination yet
+    (which we overwrote with the proxy's address). On Linux, we would now call
     getsockopt(SO_ORIGINAL_DST). We now access the redirect module's API (see APIRequestHandler),
     submit the source information and get the actual destination back (which we stored in 1.1).
 
-    (3) The mitmproxy now establishes the upstream connection as usual.
+    (3) The proxy now establishes the upstream connection as usual.
 
-    (4) Finally, the mitmproxy sends the response back to the client. To make it work, we need to change
+    (4) Finally, the proxy sends the response back to the client. To make it work, we need to change
     the packet's source address back to the original destination (using the mapping from 1.1),
     to which the client believes it is talking to.
 
     Limitations:
 
     - We assume that ephemeral TCP ports are not re-used for multiple connections at the same time.
-    The mitmproxy will fail if an application connects to example.com and example.org from
+    The proxy will fail if an application connects to example.com and example.org from
     192.168.0.42:4242 simultaneously. This could be mitigated by introducing unique "meta-addresses"
     which mitmproxy sees, but this would remove the correct client info from mitmproxy.
     """
@@ -451,7 +453,7 @@ class TransparentProxy:
                 self.filter
             )
 
-        # The mitmproxy server responds to the client. To the client,
+        # The proxy server responds to the client. To the client,
         # this response should look like it has been sent by the real target
         self.response = Redirect(
             self.redirect_response,
@@ -459,7 +461,7 @@ class TransparentProxy:
         )
 
         # Block all ICMP requests (which are sent on Windows by default).
-        # If we don't do this, our mitmproxy machine may send an ICMP redirect to the client,
+        # If we don't do this, our proxy machine may send an ICMP redirect to the client,
         # which instructs the client to directly connect to the real gateway
         # if they are on the same network.
         self.icmp = Redirect(
@@ -497,7 +499,7 @@ class TransparentProxy:
         self.api.shutdown()
 
     def redirect_request(self, packet: pydivert.Packet):
-        # print(" * Redirect client -> server to mitmproxy")
+        # print(" * Redirect client -> server to proxy")
         # print(f"{packet.src_addr}:{packet.src_port} -> {packet.dst_addr}:{packet.dst_port}")
         client = (packet.src_addr, packet.src_port)
 
@@ -523,15 +525,15 @@ class TransparentProxy:
 
     def redirect_response(self, packet: pydivert.Packet):
         """
-        If the mitmproxy responds to the client, let the client believe the target server sent the
+        If the proxy responds to the client, let the client believe the target server sent the
         packets.
         """
-        # print(" * Adjust mitmproxy -> client")
+        # print(" * Adjust proxy -> client")
         client = (packet.dst_addr, packet.dst_port)
         try:
             packet.src_addr, packet.src_port = self.client_server_map[client]
         except KeyError:
-            print(f"Warning: Previously unseen connection from mitmproxy to {client}")
+            print(f"Warning: Previously unseen connection from proxy to {client}")
         else:
             packet.recalculate_checksums()
 
@@ -546,3 +548,45 @@ class TransparentProxy:
         finally:
             if self.local:
                 self.local.trusted_pids.remove(pid)
+
+
+@click.group()
+def cli():
+    pass
+
+
+@cli.command()
+@click.option("--local/--no-local", default=True,
+              help="Redirect the host's own traffic.")
+@click.option("--forward/--no-forward", default=True,
+              help="Redirect traffic that's forwarded by the host.")
+@click.option("--filter", type=str, metavar="WINDIVERT_FILTER",
+              help="Custom WinDivert interception rule.")
+@click.option("-p", "--proxy-port", type=int, metavar="8080", default=8080,
+              help="The port mitmproxy is listening on.")
+def redirect(**options):
+    """Redirect flows to mitmproxy."""
+    proxy = TransparentProxy(**options)
+    proxy.start()
+    print(f" * Redirection active.")
+    print(f"   Filter: {proxy.request_filter}")
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print(" * Shutting down...")
+        proxy.shutdown()
+        print(" * Shut down.")
+
+
+@cli.command()
+def connections():
+    """List all TCP connections and the associated PIDs."""
+    connections = TcpConnectionTable()
+    connections.refresh()
+    for (ip, port), pid in connections.items():
+        print(f"{ip}:{port} -> {pid}")
+
+
+if __name__ == "__main__":
+    cli()

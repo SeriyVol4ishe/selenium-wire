@@ -1,18 +1,18 @@
-import contextlib
-import datetime
-import ipaddress
 import os
 import ssl
-import sys
 import time
+import datetime
+import ipaddress
+import sys
 import typing
+import contextlib
 
-import OpenSSL
+from pyasn1.type import univ, constraint, char, namedtype, tag
 from pyasn1.codec.der.decoder import decode
 from pyasn1.error import PyAsn1Error
-from pyasn1.type import char, constraint, namedtype, tag, univ
+import OpenSSL
 
-from seleniumwire.thirdparty.mitmproxy.coretypes import serializable
+from mitmproxy.coretypes import serializable
 
 # Default expiry must not be too long: https://github.com/mitmproxy/mitmproxy/issues/815
 DEFAULT_EXP = 94608000  # = 60 * 60 * 24 * 365 * 3 = 3 years
@@ -467,7 +467,7 @@ class Cert(serializable.Serializable):
         )
 
     @property
-    def cn(self):
+    def cn(self) -> typing.Optional[bytes]:
         c = None
         for i in self.subject:
             if i[0] == b"CN":
@@ -475,7 +475,7 @@ class Cert(serializable.Serializable):
         return c
 
     @property
-    def organization(self):
+    def organization(self) -> typing.Optional[bytes]:
         c = None
         for i in self.subject:
             if i[0] == b"O":
@@ -483,7 +483,7 @@ class Cert(serializable.Serializable):
         return c
 
     @property
-    def altnames(self):
+    def altnames(self) -> typing.List[bytes]:
         """
         Returns:
             All DNS altnames.
@@ -497,9 +497,9 @@ class Cert(serializable.Serializable):
                     dec = decode(ext.get_data(), asn1Spec=_GeneralNames())
                 except PyAsn1Error:
                     continue
-                for i in dec[0]:
-                    if i[0].hasValue():
-                        e = i[0].asOctets()
+                for x in dec[0]:
+                    if x[0].hasValue():
+                        e = x[0].asOctets()
                         altnames.append(e)
 
         return altnames

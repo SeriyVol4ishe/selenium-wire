@@ -4,16 +4,15 @@ import array
 import struct
 import zlib
 from enum import Enum
-
-from kaitaistruct import BytesIO, KaitaiStream, KaitaiStruct
-from kaitaistruct import __version__ as ks_version
 from pkg_resources import parse_version
 
-from .exif import Exif
+from kaitaistruct import __version__ as ks_version, KaitaiStruct, KaitaiStream, BytesIO
+
 
 if parse_version(ks_version) < parse_version('0.7'):
     raise Exception("Incompatible Kaitai Struct Python API: 0.7 or later is required, but you have %s" % (ks_version))
 
+from .exif import Exif
 
 class Jpeg(KaitaiStruct):
 

@@ -1,23 +1,26 @@
-import errno
 import os
+import errno
 import select
 import socket
 import sys
 import threading
 import time
 import traceback
+
 from typing import Optional  # noqa
+
+from seleniumwire.thirdparty.mitmproxy.net import tls
 
 from OpenSSL import SSL
 
-from seleniumwire.thirdparty.mitmproxy import certs, exceptions
+from seleniumwire.thirdparty.mitmproxy import certs
+from seleniumwire.thirdparty.mitmproxy import exceptions
 from seleniumwire.thirdparty.mitmproxy.coretypes import basethread
-from seleniumwire.thirdparty.mitmproxy.net import tls
 
 socket_fileobject = socket.SocketIO
 
 # workaround for https://bugs.python.org/issue29515
-# Python 3.6 for Windows is missing a constant
+# Python 3.8 for Windows is missing a constant, fixed in 3.9
 IPPROTO_IPV6 = getattr(socket, "IPPROTO_IPV6", 41)
 
 
@@ -77,7 +80,7 @@ class Writer(_FileLike):
         if hasattr(self.o, "flush"):
             try:
                 self.o.flush()
-            except (socket.error, IOError) as v:
+            except OSError as v:
                 raise exceptions.TcpDisconnect(str(v))
 
     def write(self, v):
@@ -94,7 +97,7 @@ class Writer(_FileLike):
                     r = self.o.write(v)
                     self.add_log(v[:r])
                     return r
-            except (SSL.Error, socket.error) as e:
+            except (SSL.Error, OSError) as e:
                 raise exceptions.TcpDisconnect(str(e))
 
 
@@ -131,7 +134,7 @@ class Reader(_FileLike):
                     raise exceptions.TcpTimeout()
             except socket.timeout:
                 raise exceptions.TcpTimeout()
-            except socket.error as e:
+            except OSError as e:
                 raise exceptions.TcpDisconnect(str(e))
             except SSL.SysCallError as e:
                 if e.args == (-1, 'Unexpected EOF'):
@@ -175,7 +178,7 @@ class Reader(_FileLike):
                 raise exceptions.TcpDisconnect()
             else:
                 raise exceptions.TcpReadIncomplete(
-                    "Expected %s bytes, got %s" % (length, len(result))
+                    "Expected {} bytes, got {}".format(length, len(result))
                 )
         return result
 
@@ -194,7 +197,7 @@ class Reader(_FileLike):
         if isinstance(self.o, socket_fileobject):
             try:
                 return self.o._sock.recv(length, socket.MSG_PEEK)
-            except socket.error as e:
+            except OSError as e:
                 raise exceptions.TcpException(repr(e))
         elif isinstance(self.o, SSL.Connection):
             try:
@@ -265,7 +268,7 @@ def close_socket(sock):
         # Now we can close the other half as well.
         sock.shutdown(socket.SHUT_RD)
 
-    except socket.error:
+    except OSError:
         pass
 
     sock.close()
@@ -369,7 +372,7 @@ class TCPClient(_Connection):
         return getattr(self.connection, "cert_error", None)
 
     def close(self):
-        # Make sure to close the real socket, not the SSL mitmproxy.
+        # Make sure to close the real socket, not the SSL proxy.
         # OpenSSL is really good at screwing up, i.e. when trying to recv from a failed connection,
         # it tries to renegotiate...
         if self.connection:
@@ -384,13 +387,18 @@ class TCPClient(_Connection):
             sni=sni,
             **sslctx_kwargs
         )
-        sock = self.connection
         self.connection = SSL.Connection(context, self.connection)
         if sni:
             self.sni = sni
             self.connection.set_tlsext_host_name(sni.encode("idna"))
         self.connection.set_connect_state()
-        do_ssl_handshake(sock, self.connection)
+        try:
+            self.connection.do_handshake()
+        except SSL.Error as v:
+            if self.ssl_verification_error:
+                raise self.ssl_verification_error
+            else:
+                raise exceptions.TlsException("SSL handshake error: %s" % repr(v))
 
         self.cert = certs.Cert(self.connection.get_peer_certificate())
 
@@ -406,15 +414,12 @@ class TCPClient(_Connection):
         # some parties (cuckoo sandbox) need to hook this
         return socket.socket(family, type, proto)
 
-    def getaddrinfo(self, *args, **kwargs):
-        return socket.getaddrinfo(*args, **kwargs)
-
     def create_connection(self, timeout=None):
         # Based on the official socket.create_connection implementation of Python 3.6.
         # https://github.com/python/cpython/blob/3cc5817cfaf5663645f4ee447eaed603d2ad290a/Lib/socket.py
 
         err = None
-        for res in self.getaddrinfo(self.address[0], self.address[1], 0, socket.SOCK_STREAM):
+        for res in socket.getaddrinfo(self.address[0], self.address[1], 0, socket.SOCK_STREAM):
             af, socktype, proto, canonname, sa = res
             sock = None
             try:
@@ -437,7 +442,7 @@ class TCPClient(_Connection):
                 sock.connect(sa)
                 return sock
 
-            except socket.error as _:
+            except OSError as _:
                 err = _
                 if sock is not None:
                     sock.close()
@@ -445,12 +450,12 @@ class TCPClient(_Connection):
         if err is not None:
             raise err
         else:
-            raise socket.error("getaddrinfo returns an empty list")  # pragma: no cover
+            raise OSError("getaddrinfo returns an empty list")  # pragma: no cover
 
     def connect(self):
         try:
             connection = self.create_connection()
-        except (socket.error, IOError) as err:
+        except OSError as err:
             raise exceptions.TcpException(
                 'Error connecting to "%s": %s' %
                 (self.address[0], err)
@@ -472,37 +477,6 @@ class TCPClient(_Connection):
             return self.connection.get_alpn_proto_negotiated()
         else:
             return b""
-
-
-def do_ssl_handshake(sock, ssl_connection):
-    """Peform the SSL handshake.
-
-    If a timeout has been set on the socket externally, it causes OpenSSL
-    to raise EWOULDBLOCK which breaks the handshake. This function will
-    catch that condition and will retry the operation until it succeeds or
-    some other error occurs.
-
-    See https://github.com/pyca/pyopenssl/issues/168 for more information.
-
-    Args:
-        sock: The underlying socket.
-        ssl_connection: The OpenSSL Connection object.
-    """
-    while True:
-        try:
-            ssl_connection.do_handshake()
-        except SSL.WantReadError:
-            rd, _, _ = select.select([sock], [], [], sock.gettimeout())
-            if not rd:
-                raise exceptions.TcpTimeout("Select timed out")
-            continue
-        except SSL.Error as e:
-            verification_error = getattr(ssl_connection, "cert_error", None)
-            if verification_error:
-                raise verification_error
-            else:
-                raise exceptions.TlsException("SSL handshake error: %s" % repr(e))
-        break
 
 
 class BaseHandler(_Connection):
@@ -527,11 +501,10 @@ class BaseHandler(_Connection):
             cert=cert,
             key=key,
             **sslctx_kwargs)
-        sock = self.connection
         self.connection = SSL.Connection(context, self.connection)
         self.connection.set_accept_state()
         try:
-            do_ssl_handshake(sock, self.connection)
+            self.connection.do_handshake()
         except SSL.Error as v:
             raise exceptions.TlsException("SSL handshake error: %s" % repr(v))
         self.tls_established = True
@@ -582,7 +555,7 @@ class TCPServer:
         self.__shutdown_request = False
 
         if self.address[0] == 'localhost':
-            raise socket.error("Binding to 'localhost' is prohibited. Please use '::1' or '127.0.0.1' directly.")
+            raise OSError("Binding to 'localhost' is prohibited. Please use '::1' or '127.0.0.1' directly.")
 
         self.socket = None
 
@@ -595,12 +568,10 @@ class TCPServer:
             self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
             self.socket.setsockopt(IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
             self.socket.bind(self.address)
-        except socket.error as e:
+        except OSError:
             if self.socket:
                 self.socket.close()
             self.socket = None
-            if e.errno == 98:  # Address already in use
-                raise e
 
         if not self.socket:
             try:
@@ -609,12 +580,10 @@ class TCPServer:
                 self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
                 self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
                 self.socket.bind(self.address)
-            except socket.error as e:
+            except OSError:
                 if self.socket:
                     self.socket.close()
                 self.socket = None
-                if e.errno == 98:  # Address already in use
-                    raise e
 
         if not self.socket:
             # Binding to an IPv4 only socket failed, lets fall back to IPv6 only.
@@ -651,7 +620,7 @@ class TCPServer:
                 if self.socket in r:
                     connection, client_address = self.socket.accept()
                     t = basethread.BaseThread(
-                        "TCPConnectionHandler (%s: %s:%s -> %s:%s)" % (
+                        "TCPConnectionHandler ({}: {}:{} -> {}:{})".format(
                             self.__class__.__name__,
                             client_address[0],
                             client_address[1],
@@ -685,11 +654,11 @@ class TCPServer:
         # none.
         if traceback:
             exc = str(traceback.format_exc())
-            print(u'-' * 40, file=fp)
+            print('-' * 40, file=fp)
             print(
-                u"Error in processing of request from %s" % repr(client_address), file=fp)
+                "Error in processing of request from %s" % repr(client_address), file=fp)
             print(exc, file=fp)
-            print(u'-' * 40, file=fp)
+            print('-' * 40, file=fp)
 
     def handle_client_connection(self, conn, client_address):  # pragma: no cover
         """

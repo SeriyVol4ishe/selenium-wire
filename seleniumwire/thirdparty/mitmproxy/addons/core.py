@@ -1,13 +1,19 @@
-import os
 import tempfile
 import typing
 
-from seleniumwire.thirdparty.mitmproxy import command, ctx, exceptions, optmanager, platform
+import os
+
+from seleniumwire.thirdparty.mitmproxy.utils import human
+from seleniumwire.thirdparty.mitmproxy import ctx
+from seleniumwire.thirdparty.mitmproxy import exceptions
+from seleniumwire.thirdparty.mitmproxy import command
 from seleniumwire.thirdparty.mitmproxy import flow
+from seleniumwire.thirdparty.mitmproxy import optmanager
+from seleniumwire.thirdparty.mitmproxy import platform
 from seleniumwire.thirdparty.mitmproxy.net import server_spec
 from seleniumwire.thirdparty.mitmproxy.net.http import status_codes
-from seleniumwire.thirdparty.mitmproxy.utils import human
 import seleniumwire.thirdparty.mitmproxy.types
+
 
 CONF_DIR = os.path.join(tempfile.gettempdir(), '.seleniumwire')
 LISTEN_PORT = 8080
@@ -26,7 +32,7 @@ class Core:
             "keep_host_header", bool, False,
             """
             Reverse Proxy: Keep the original host header instead of rewriting it
-            to the reverse mitmproxy target.
+            to the reverse proxy target.
             """
         )
 
@@ -34,16 +40,7 @@ class Core:
         opts = ctx.options
         if opts.add_upstream_certs_to_client_chain and not opts.upstream_cert:
             raise exceptions.OptionsError(
-                "The no-upstream-cert and add-upstream-certs-to-client-chain "
-                "options are mutually exclusive. If no-upstream-cert is enabled "
-                "then the upstream certificate is not retrieved before generating "
-                "the client certificate chain."
-            )
-        if opts.add_upstream_certs_to_client_chain and not opts.ssl_insecure:
-            raise exceptions.OptionsError(
-                "The verify-upstream-cert requires certificate verification to be disabled. "
-                "If upstream certificates are verified then extra upstream certificates are "
-                "not available for inclusion to the client chain."
+                "add_upstream_certs_to_client_chain requires the upstream_cert option to be enabled."
             )
         if "body_size_limit" in updated:
             try:
@@ -74,7 +71,7 @@ class Core:
                 client_certs = os.path.expanduser(opts.client_certs)
                 if not os.path.exists(client_certs):
                     raise exceptions.OptionsError(
-                        "Client certificate path does not exist: {}".format(opts.client_certs)
+                        f"Client certificate path does not exist: {opts.client_certs}"
                     )
 
     @command.command("set")
@@ -198,7 +195,7 @@ class Core:
                         req.url = val
                     except ValueError as e:
                         raise exceptions.CommandError(
-                            "URL %s is invalid: %s" % (repr(val), e)
+                            "URL {} is invalid: {}".format(repr(val), e)
                         ) from e
                 else:
                     self.rupdate = False
@@ -219,7 +216,7 @@ class Core:
                 updated.append(f)
 
         ctx.master.addons.trigger("update", updated)
-        ctx.log.alert("Set %s on  %s flows." % (attr, len(updated)))
+        ctx.log.alert("Set {} on  {} flows.".format(attr, len(updated)))
 
     @command.command("flow.decode")
     def decode(self, flows: typing.Sequence[flow.Flow], part: str) -> None:
