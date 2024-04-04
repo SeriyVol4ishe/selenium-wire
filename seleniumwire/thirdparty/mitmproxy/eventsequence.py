@@ -1,7 +1,10 @@
 import typing
 
-from seleniumwire.thirdparty.mitmproxy import controller, http, tcp, websocket
+from seleniumwire.thirdparty.mitmproxy import controller
 from seleniumwire.thirdparty.mitmproxy import flow
+from seleniumwire.thirdparty.mitmproxy import http
+from seleniumwire.thirdparty.mitmproxy import tcp
+from seleniumwire.thirdparty.mitmproxy import websocket
 
 Events = frozenset([
     "clientconnect",
@@ -87,6 +90,6 @@ def iterate(f: flow.Flow) -> TEventGenerator:
     try:
         e = _iterate_map[type(f)]
     except KeyError as err:
-        raise TypeError("Unknown flow type: {}".format(f)) from err
+        raise TypeError(f"Unknown flow type: {f}") from err
     else:
         yield from e(f)

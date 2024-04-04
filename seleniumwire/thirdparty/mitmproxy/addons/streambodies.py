@@ -1,7 +1,8 @@
 import typing
 
-from seleniumwire.thirdparty.mitmproxy import ctx, exceptions
 from seleniumwire.thirdparty.mitmproxy.net.http import http1
+from seleniumwire.thirdparty.mitmproxy import exceptions
+from seleniumwire.thirdparty.mitmproxy import ctx
 from seleniumwire.thirdparty.mitmproxy.utils import human
 
 

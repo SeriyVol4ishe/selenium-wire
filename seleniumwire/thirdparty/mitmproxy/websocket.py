@@ -1,13 +1,15 @@
-import queue
 import time
+import queue
+import warnings
 from typing import List, Optional, Union
 
-from wsproto.frame_protocol import CloseReason, Opcode
+from wsproto.frame_protocol import CloseReason
+from wsproto.frame_protocol import Opcode
 
 from seleniumwire.thirdparty.mitmproxy import flow
+from seleniumwire.thirdparty.mitmproxy.net import websocket
 from seleniumwire.thirdparty.mitmproxy.coretypes import serializable
-from seleniumwire.thirdparty.mitmproxy.net import websockets
-from seleniumwire.thirdparty.mitmproxy.utils import human, strutils
+from seleniumwire.thirdparty.mitmproxy.utils import strutils, human, compat
 
 
 class WebSocketMessage(serializable.Serializable):
@@ -52,12 +54,18 @@ class WebSocketMessage(serializable.Serializable):
 
         It will not be sent to the other endpoint. This has no effect in streaming mode.
         """
-        self.killed = True
+        if compat.new_proxy_core:  # pragma: no cover
+            warnings.warn("WebSocketMessage.kill is deprecated, set an empty content instead.",
+                          PendingDeprecationWarning)
+            # empty str or empty bytes.
+            self.content = type(self.content)()
+        else:  # pragma: no cover
+            self.killed = True
 
 
 class WebSocketFlow(flow.Flow):
     """
-    A WebSocketFlow is a simplified representation of a Websocket connection.
+    A WebSocketFlow is a simplified representation of a WebSocket connection.
     """
 
     def __init__(self, client_conn, server_conn, handshake_flow, live=None):
@@ -84,12 +92,12 @@ class WebSocketFlow(flow.Flow):
         self._inject_messages_server = queue.Queue(maxsize=1)
 
         if handshake_flow:
-            self.client_key = websockets.get_client_key(handshake_flow.request.headers)
-            self.client_protocol = websockets.get_protocol(handshake_flow.request.headers)
-            self.client_extensions = websockets.get_extensions(handshake_flow.request.headers)
-            self.server_accept = websockets.get_server_accept(handshake_flow.response.headers)
-            self.server_protocol = websockets.get_protocol(handshake_flow.response.headers)
-            self.server_extensions = websockets.get_extensions(handshake_flow.response.headers)
+            self.client_key = websocket.get_client_key(handshake_flow.request.headers)
+            self.client_protocol = websocket.get_protocol(handshake_flow.request.headers)
+            self.client_extensions = websocket.get_extensions(handshake_flow.request.headers)
+            self.server_accept = websocket.get_server_accept(handshake_flow.response.headers)
+            self.server_protocol = websocket.get_protocol(handshake_flow.response.headers)
+            self.server_extensions = websocket.get_extensions(handshake_flow.response.headers)
         else:
             self.client_key = ''
             self.client_protocol = ''

@@ -1,14 +1,15 @@
-import contextlib
-import pprint
-import sys
-import traceback
 import types
 import typing
+import traceback
+import contextlib
+import sys
 
-from seleniumwire.thirdparty.mitmproxy import controller, eventsequence, exceptions
+from seleniumwire.thirdparty.mitmproxy import exceptions
+from seleniumwire.thirdparty.mitmproxy import eventsequence
+from seleniumwire.thirdparty.mitmproxy import controller
 from seleniumwire.thirdparty.mitmproxy import flow
-
 from . import ctx
+import pprint
 
 
 def _get_name(itm):
@@ -45,7 +46,7 @@ def safecall():
         etype, value, tb = sys.exc_info()
         tb = cut_traceback(tb, "invoke_addon")
         ctx.log.error(
-            "Error handling request\n%s" % "".join(
+            "Addon error: %s" % "".join(
                 traceback.format_exception(etype, value, tb)
             )
         )
@@ -237,13 +238,13 @@ class AddonManager:
                     func(*args, **kwargs)
                 elif isinstance(func, types.ModuleType):
                     # we gracefully exclude module imports with the same name as hooks.
-                    # For example, a user may have "from mitmproxy import log" in an addon,
+                    # For example, a user may have "from seleniumwire.thirdparty.mitmproxy import log" in an addon,
                     # which has the same name as the "log" hook. In this particular case,
                     # we end up in an error loop because we "log" this error.
                     pass
                 else:
                     raise exceptions.AddonManagerError(
-                        "Addon handler {} ({}) not callable".format(name, a)
+                        f"Addon handler {name} ({a}) not callable"
                     )
 
     def trigger(self, name, *args, **kwargs):

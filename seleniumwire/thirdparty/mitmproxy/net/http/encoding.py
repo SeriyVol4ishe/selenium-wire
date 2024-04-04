@@ -4,19 +4,22 @@ Utility functions for decoding response bodies.
 
 import codecs
 import collections
+from io import BytesIO
+
 import gzip
 import zlib
-from io import BytesIO
-from typing import AnyStr, Optional, Union, overload  # noqa
-
 import brotli
 import zstandard as zstd
+
+from typing import Union, Optional, AnyStr, overload  # noqa
 
 # We have a shared single-element cache for encoding and decoding.
 # This is quite useful in practice, e.g.
 # flow.request.content = flow.request.content.replace(b"foo", b"bar")
 # does not require an .encode() call if content does not contain b"foo"
-CachedDecode = collections.namedtuple("CachedDecode", "encoded encoding errors decoded")
+CachedDecode = collections.namedtuple(
+    "CachedDecode", "encoded encoding errors decoded"
+)
 _cache = CachedDecode(None, None, None, None)
 
 
@@ -35,7 +38,9 @@ def decode(encoded: bytes, encoding: str, errors: str = 'strict') -> Union[str, 
     ...
 
 
-def decode(encoded: Union[None, str, bytes], encoding: str, errors: str = 'strict') -> Union[None, str, bytes]:
+def decode(
+        encoded: Union[None, str, bytes], encoding: str, errors: str = 'strict'
+) -> Union[None, str, bytes]:
     """
     Decode the given input object
 
@@ -50,10 +55,10 @@ def decode(encoded: Union[None, str, bytes], encoding: str, errors: str = 'stric
 
     global _cache
     cached = (
-        isinstance(encoded, bytes)
-        and _cache.encoded == encoded
-        and _cache.encoding == encoding
-        and _cache.errors == errors
+            isinstance(encoded, bytes) and
+            _cache.encoded == encoded and
+            _cache.encoding == encoding and
+            _cache.errors == errors
     )
     if cached:
         return _cache.decoded
@@ -68,14 +73,12 @@ def decode(encoded: Union[None, str, bytes], encoding: str, errors: str = 'stric
     except TypeError:
         raise
     except Exception as e:
-        raise ValueError(
-            "{} when decoding {} with {}: {}".format(
-                type(e).__name__,
-                repr(encoded)[:10],
-                repr(encoding),
-                repr(e),
-            )
-        )
+        raise ValueError("{} when decoding {} with {}: {}".format(
+            type(e).__name__,
+            repr(encoded)[:10],
+            repr(encoding),
+            repr(e),
+        ))
 
 
 @overload
@@ -108,10 +111,10 @@ def encode(decoded: Union[None, str, bytes], encoding, errors='strict') -> Union
 
     global _cache
     cached = (
-        isinstance(decoded, bytes)
-        and _cache.decoded == decoded
-        and _cache.encoding == encoding
-        and _cache.errors == errors
+            isinstance(decoded, bytes) and
+            _cache.decoded == decoded and
+            _cache.encoding == encoding and
+            _cache.errors == errors
     )
     if cached:
         return _cache.encoded
@@ -126,20 +129,18 @@ def encode(decoded: Union[None, str, bytes], encoding, errors='strict') -> Union
     except TypeError:
         raise
     except Exception as e:
-        raise ValueError(
-            "{} when encoding {} with {}: {}".format(
-                type(e).__name__,
-                repr(decoded)[:10],
-                repr(encoding),
-                repr(e),
-            )
-        )
+        raise ValueError("{} when encoding {} with {}: {}".format(
+            type(e).__name__,
+            repr(decoded)[:10],
+            repr(encoding),
+            repr(e),
+        ))
 
 
 def identity(content):
     """
-    Returns content unchanged. Identity is the default value of
-    Accept-Encoding headers.
+        Returns content unchanged. Identity is the default value of
+        Accept-Encoding headers.
     """
     return content
 
@@ -188,12 +189,12 @@ def encode_zstd(content: bytes) -> bytes:
 
 def decode_deflate(content: bytes) -> bytes:
     """
-    Returns decompressed data for DEFLATE. Some servers may respond with
-    compressed data without a zlib header or checksum. An undocumented
-    feature of zlib permits the lenient decompression of data missing both
-    values.
+        Returns decompressed data for DEFLATE. Some servers may respond with
+        compressed data without a zlib header or checksum. An undocumented
+        feature of zlib permits the lenient decompression of data missing both
+        values.
 
-    http://bugs.python.org/issue5784
+        http://bugs.python.org/issue5784
     """
     if not content:
         return b""
@@ -205,7 +206,7 @@ def decode_deflate(content: bytes) -> bytes:
 
 def encode_deflate(content: bytes) -> bytes:
     """
-    Returns compressed content, always including zlib header and checksum.
+        Returns compressed content, always including zlib header and checksum.
     """
     return zlib.compress(content)
 

@@ -9,8 +9,8 @@ import threading
 import typing
 
 import certifi
-from kaitaistruct import KaitaiStream
 from OpenSSL import SSL
+from kaitaistruct import KaitaiStream
 
 import seleniumwire.thirdparty.mitmproxy.options
 from seleniumwire.thirdparty.mitmproxy import certs, exceptions
@@ -53,7 +53,7 @@ METHOD_NAMES = {
 }
 
 
-def client_arguments_from_options(options: "seleniumwire.thirdparty.mitmproxy.options.Options") -> dict:
+def client_arguments_from_options(options: "mitmproxy.options.Options") -> dict:
 
     if options.ssl_insecure:
         verify = SSL.VERIFY_NONE
@@ -75,43 +75,24 @@ def client_arguments_from_options(options: "seleniumwire.thirdparty.mitmproxy.op
 
 class MasterSecretLogger:
     def __init__(self, filename):
-        self.filename = filename
+        self.filename = os.path.expanduser(filename)
         self.f = None
         self.lock = threading.Lock()
 
     # required for functools.wraps, which pyOpenSSL uses.
     __name__ = "MasterSecretLogger"
 
-    def __call__(self, connection, where, ret):
-        done_now = (
-            where == SSL.SSL_CB_HANDSHAKE_DONE and ret == 1
-        )
-        # this is a horrendous workaround for https://github.com/mitmproxy/mitmproxy/pull/3692#issuecomment-608454530:
-        # OpenSSL 1.1.1f decided to not make connection.master_key() fail in the SSL_CB_HANDSHAKE_DONE callback.
-        # To support various OpenSSL versions and still log master secrets, we now mark connections where this has
-        # happened and then try again on the next event. This is ugly and shouldn't be done, but eventually we
-        # replace this with context.set_keylog_callback anyways.
-        done_previously_but_not_logged_yet = (
-            hasattr(connection, "_still_needs_masterkey")
-        )
-        if done_now or done_previously_but_not_logged_yet:
-            with self.lock:
-                if not self.f:
-                    d = os.path.dirname(self.filename)
-                    if not os.path.isdir(d):
-                        os.makedirs(d)
-                    self.f = open(self.filename, "ab")
-                    self.f.write(b"\r\n")
-                try:
-                    client_random = binascii.hexlify(connection.client_random())
-                    masterkey = binascii.hexlify(connection.master_key())
-                except (AssertionError, SSL.Error):  # careful: exception type changes between pyOpenSSL versions
-                    connection._still_needs_masterkey = True
-                else:
-                    self.f.write(b"CLIENT_RANDOM %s %s\r\n" % (client_random, masterkey))
-                    self.f.flush()
-                    if hasattr(connection, "_still_needs_masterkey"):
-                        delattr(connection, "_still_needs_masterkey")
+    def __call__(self, connection, keymaterial):
+        with self.lock:
+            if not self.f:
+                d = os.path.dirname(self.filename)
+                if not os.path.isdir(d):
+                    os.makedirs(d)
+                self.f = open(self.filename, "ab")
+                self.f.write(b"\n")
+            self.f.write(keymaterial)
+            self.f.write(b"\n")
+            self.f.flush()
 
     def close(self):
         with self.lock:
@@ -199,7 +180,7 @@ def _create_ssl_context(
 
     # SSLKEYLOGFILE
     if log_master_secret:
-        context.set_info_callback(log_master_secret)
+        context.set_keylog_callback(log_master_secret)
 
     if alpn_protos is not None:
         # advertise application layer protocols
@@ -317,7 +298,7 @@ def create_server_context(
         request_client_cert: bool = False,
         chain_file=None,
         dhparams=None,
-        extra_chain_certs: typing.Iterable[certs.Cert] = None,
+        extra_chain_certs: typing.Optional[typing.Iterable[certs.Cert]] = None,
         **sslctx_kwargs
 ) -> SSL.Context:
     """
@@ -394,7 +375,7 @@ def get_client_hello(rfile):
     Peek into the socket and read all records that contain the initial client hello message.
 
     client_conn:
-        The :py:class:`client connection <seleniumwire.thirdparty.mitmproxy.connections.ClientConnection>`.
+        The :py:class:`client connection <mitmproxy.connections.ClientConnection>`.
 
     Returns:
         The raw handshake packet bytes, without TLS record header(s).
@@ -465,9 +446,9 @@ class ClientHello:
         """
         Peek into the connection, read the initial client hello and parse it to obtain ALPN values.
         client_conn:
-            The :py:class:`client connection <seleniumwire.thirdparty.mitmproxy.connections.ClientConnection>`.
+            The :py:class:`client connection <mitmproxy.connections.ClientConnection>`.
         Returns:
-            :py:class:`client hello <seleniumwire.thirdparty.mitmproxy.net.tls.ClientHello>`.
+            :py:class:`client hello <mitmproxy.net.tls.ClientHello>`.
         """
         try:
             raw_client_hello = get_client_hello(client_conn)[4:]  # exclude handshake header.

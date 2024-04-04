@@ -1,7 +1,6 @@
-import mimetypes
 import re
+import mimetypes
 from urllib.parse import quote
-
 from seleniumwire.thirdparty.mitmproxy.net.http import headers
 
 

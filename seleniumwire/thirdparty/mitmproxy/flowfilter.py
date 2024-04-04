@@ -39,9 +39,8 @@ from typing import Callable, ClassVar, Optional, Sequence, Type
 
 import pyparsing as pp
 
-from seleniumwire.thirdparty.mitmproxy import http, tcp, websocket
-from seleniumwire.thirdparty.mitmproxy import flow
-from seleniumwire.thirdparty.mitmproxy.net import websockets as net_websockets
+from seleniumwire.thirdparty.mitmproxy import flow, http, tcp, websocket
+from seleniumwire.thirdparty.mitmproxy.net.websocket import check_handshake
 
 
 def only(*types):
@@ -108,7 +107,7 @@ class FWebSocket(_Action):
     @only(http.HTTPFlow, websocket.WebSocketFlow)
     def __call__(self, f):
         m = (
-            (isinstance(f, http.HTTPFlow) and f.request and net_websockets.check_handshake(f.request.headers))
+            (isinstance(f, http.HTTPFlow) and f.request and check_handshake(f.request.headers))
             or isinstance(f, websocket.WebSocketFlow)
         )
         return m

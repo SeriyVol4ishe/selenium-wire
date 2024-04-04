@@ -22,7 +22,7 @@ server_spec_re = re.compile(
         /?  #  we allow a trailing backslash, but no path
         $
         """,
-    re.VERBOSE,
+    re.VERBOSE
 )
 
 
@@ -39,36 +39,36 @@ def parse(server_spec: str) -> ServerSpec:
     """
     m = server_spec_re.match(server_spec)
     if not m:
-        raise ValueError("Invalid server specification: {}".format(server_spec))
+        raise ValueError(f"Invalid server specification: {server_spec}")
 
     # defaulting to https/port 443 may annoy some folks, but it's secure-by-default.
     scheme = m.group("scheme") or "https"
-    if scheme not in ("http", "https", "socks4", "socks5", "socks5h"):
-        raise ValueError("Invalid server scheme: {}".format(scheme))
+    if scheme not in ("http", "https"):
+        raise ValueError(f"Invalid server scheme: {scheme}")
 
     host = m.group("host")
     # IPv6 brackets
     if host.startswith("[") and host.endswith("]"):
         host = host[1:-1]
     if not check.is_valid_host(host.encode("idna")):
-        raise ValueError("Invalid hostname: {}".format(host))
+        raise ValueError(f"Invalid hostname: {host}")
 
     if m.group("port"):
         port = int(m.group("port"))
     else:
-        try:
-            port = {"http": 80, "https": 443}[scheme]
-        except KeyError as e:
-            raise ValueError(f"You need to specify a port when using {scheme}") from e
+        port = {
+            "http": 80,
+            "https": 443
+        }[scheme]
     if not check.is_valid_port(port):
-        raise ValueError("Invalid port: {}".format(port))
+        raise ValueError(f"Invalid port: {port}")
 
     return ServerSpec(scheme, (host, port))
 
 
 def parse_with_mode(mode: str) -> Tuple[str, ServerSpec]:
     """
-    Parse a mitmproxy mode specification, which is usually just (reverse|upstream):server-spec
+    Parse a proxy mode specification, which is usually just (reverse|upstream):server-spec
 
     Returns:
         A (mode, server_spec) tuple.

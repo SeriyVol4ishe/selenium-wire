@@ -2,7 +2,11 @@ import time
 import typing  # noqa
 import uuid
 
-from seleniumwire.thirdparty.mitmproxy import connections, controller, exceptions, stateobject, version  # noqa
+from seleniumwire.thirdparty.mitmproxy import controller
+from seleniumwire.thirdparty.mitmproxy import exceptions
+from seleniumwire.thirdparty.mitmproxy import stateobject
+from seleniumwire.thirdparty.mitmproxy import version
+from seleniumwire.thirdparty.mitmproxy.utils import compat
 
 
 class Error(stateobject.StateObject):
@@ -60,8 +64,8 @@ class Flow(stateobject.StateObject):
     def __init__(
             self,
             type: str,
-            client_conn: connections.ClientConnection,
-            server_conn: connections.ServerConnection,
+            client_conn: compat.Client,
+            server_conn: compat.Server,
             live: bool=None
     ) -> None:
         self.type = type
@@ -81,8 +85,8 @@ class Flow(stateobject.StateObject):
     _stateobject_attributes = dict(
         id=str,
         error=Error,
-        client_conn=connections.ClientConnection,
-        server_conn=connections.ServerConnection,
+        client_conn=compat.Client,
+        server_conn=compat.Server,
         type=str,
         intercepted=bool,
         is_replay=str,

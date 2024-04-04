@@ -1,21 +1,19 @@
+import sys
+import traceback
+import threading
 import asyncio
 import logging
-import sys
-import threading
-import traceback
 
-from seleniumwire.thirdparty.mitmproxy import (
-    addonmanager,
-    command,
-    controller,
-    eventsequence,
-    http,
-    log,
-    options,
-    websocket,
-)
-from seleniumwire.thirdparty.mitmproxy.coretypes import basethread
+from seleniumwire.thirdparty.mitmproxy import addonmanager
+from seleniumwire.thirdparty.mitmproxy import options
+from seleniumwire.thirdparty.mitmproxy import controller
+from seleniumwire.thirdparty.mitmproxy import eventsequence
+from seleniumwire.thirdparty.mitmproxy import command
+from seleniumwire.thirdparty.mitmproxy import http
+from seleniumwire.thirdparty.mitmproxy import websocket
+from seleniumwire.thirdparty.mitmproxy import log
 from seleniumwire.thirdparty.mitmproxy.net import server_spec
+from seleniumwire.thirdparty.mitmproxy.coretypes import basethread
 
 from . import ctx as mitmproxy_ctx
 
@@ -38,14 +36,13 @@ class ServerThread(basethread.BaseThread):
 
 class Master:
     """
-    The master handles mitmproxy's main event loop.
+        The master handles mitmproxy's main event loop.
     """
-
-    def __init__(self, event_loop, opts):
+    def __init__(self, opts):
         self.should_exit = threading.Event()
         self.channel = controller.Channel(
             self,
-            event_loop,
+            asyncio.get_event_loop(),
             self.should_exit,
         )
 
@@ -83,22 +80,29 @@ class Master:
 
         exc = None
         try:
-            loop.run_forever()
+            loop()
         except Exception:  # pragma: no cover
             exc = traceback.format_exc()
         finally:
             if not self.should_exit.is_set():  # pragma: no cover
                 self.shutdown()
-            if not loop.is_closed():
-                tasks = asyncio.all_tasks(loop) if sys.version_info >= (3, 7) else asyncio.Task.all_tasks(loop)
-                for p in tasks:
-                    p.cancel()
-                loop.close()
+            loop = asyncio.get_event_loop()
+            tasks = asyncio.all_tasks(loop)
+            for p in tasks:
+                p.cancel()
+            loop.close()
 
         if exc:  # pragma: no cover
             print(exc, file=sys.stderr)
+            print("mitmproxy has crashed!", file=sys.stderr)
+            print("Please lodge a bug report at:", file=sys.stderr)
+            print("\thttps://github.com/mitmproxy/mitmproxy", file=sys.stderr)
 
         self.addons.trigger("done")
+
+    def run(self, func=None):
+        loop = asyncio.get_event_loop()
+        self.run_loop(loop.run_forever)
 
     async def _shutdown(self):
         self.should_exit.set()

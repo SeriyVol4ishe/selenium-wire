@@ -5,7 +5,7 @@ from typing import Callable, Optional, Union, cast
 from seleniumwire.thirdparty.mitmproxy.coretypes import serializable
 from seleniumwire.thirdparty.mitmproxy.net.http import encoding
 from seleniumwire.thirdparty.mitmproxy.net.http.headers import Headers, assemble_content_type, parse_content_type
-from seleniumwire.thirdparty.mitmproxy.utils import typecheck, strutils
+from seleniumwire.thirdparty.mitmproxy.utils import strutils, typecheck
 
 
 @dataclass
@@ -134,7 +134,7 @@ class Message(serializable.Serializable):
                 content = encoding.decode(self.raw_content, ce)
                 # A client may illegally specify a byte -> str encoding here (e.g. utf8)
                 if isinstance(content, str):
-                    raise ValueError("Invalid Content-Encoding: {}".format(ce))
+                    raise ValueError(f"Invalid Content-Encoding: {ce}")
                 return content
             except ValueError:
                 if strict:

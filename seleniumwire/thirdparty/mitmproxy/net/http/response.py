@@ -1,12 +1,18 @@
 import time
 from dataclasses import dataclass
 from email.utils import formatdate, mktime_tz, parsedate_tz
-from typing import Iterable, Mapping, Optional, Tuple, Union
+from typing import Mapping
+from typing import Iterable
+from typing import Optional
+from typing import Tuple
+from typing import Union
 
 from seleniumwire.thirdparty.mitmproxy.coretypes import multidict
-from seleniumwire.thirdparty.mitmproxy.net.http import cookies, status_codes, message
+from seleniumwire.thirdparty.mitmproxy.net.http import cookies, message
+from seleniumwire.thirdparty.mitmproxy.net.http import status_codes
 from seleniumwire.thirdparty.mitmproxy.net.http.headers import Headers
-from seleniumwire.thirdparty.mitmproxy.utils import human, strutils
+from seleniumwire.thirdparty.mitmproxy.utils import human
+from seleniumwire.thirdparty.mitmproxy.utils import strutils
 from seleniumwire.thirdparty.mitmproxy.utils.strutils import always_bytes
 
 

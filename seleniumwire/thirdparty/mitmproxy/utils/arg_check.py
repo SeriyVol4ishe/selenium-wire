@@ -1,4 +1,5 @@
 import sys
+import re
 
 DEPRECATED = """
 --confdir
@@ -117,7 +118,7 @@ def check():
 
     for option in ("-e", "--eventlog", "--norefresh"):
         if option in args:
-            print("{} has been removed.".format(option))
+            print(f"{option} has been removed.")
 
     for option in ("--nonanonymous", "--singleuser", "--htpasswd"):
         if option in args:
@@ -152,4 +153,13 @@ def check():
                     option,
                     REPLACEMENTS.get(option, None) or option.lstrip("-").replace("-", "_")
                 )
+            )
+
+    # Check for underscores in the options. Options always follow '--'.
+    for argument in args:
+        underscoreParam = re.search('[-]{2}((.*?_)(.*?(\s|$)))+', argument)
+        if underscoreParam is not None:
+            print("{} uses underscores, please use hyphens {}".format(
+                argument,
+                argument.replace('_', '-'))
             )
