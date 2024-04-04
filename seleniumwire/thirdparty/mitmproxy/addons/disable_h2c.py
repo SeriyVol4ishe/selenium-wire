@@ -1,4 +1,4 @@
-import mitmproxy
+import seleniumwire.thirdparty.mitmproxy
 
 
 class DisableH2C:
@@ -16,7 +16,7 @@ class DisableH2C:
 
     def process_flow(self, f):
         if f.request.headers.get('upgrade', '') == 'h2c':
-            mitmproxy.ctx.log.warn("HTTP/2 cleartext connections (h2c upgrade requests) are currently not supported.")
+            seleniumwire.thirdparty.mitmproxy.ctx.log.warn("HTTP/2 cleartext connections (h2c upgrade requests) are currently not supported.")
             del f.request.headers['upgrade']
             if 'connection' in f.request.headers:
                 del f.request.headers['connection']
@@ -30,7 +30,7 @@ class DisableH2C:
         )
         if is_connection_preface:
             f.kill()
-            mitmproxy.ctx.log.warn("Initiating HTTP/2 connections with prior knowledge are currently not supported.")
+            seleniumwire.thirdparty.mitmproxy.ctx.log.warn("Initiating HTTP/2 connections with prior knowledge are currently not supported.")
 
     # Handlers
 
